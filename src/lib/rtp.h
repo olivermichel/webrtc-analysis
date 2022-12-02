@@ -15,6 +15,8 @@ namespace rtp {
 
     static bool contains_rtp(const unsigned char* buf, std::size_t len) {
 
+        // https://www.rfc-editor.org/rfc/rfc5761#section-4
+
         return len >= 12 && ((buf[0] >> 6) & 0x03) == 0x02 && buf[1] <= 191;
     }
 
@@ -109,6 +111,28 @@ namespace rtp {
                     i++;
                 }
             }
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::uint32_t> get_abs_send_time(const rtp::hdr* hdr, unsigned type) {
+
+        auto ext = get_ext(hdr, type);
+
+        if (ext && ext->len == 3) {
+            return (ext->data[0] << 16) | (ext->data[1] << 8) | (ext->data[2]);
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::uint32_t> get_transport_cc_seq(const rtp::hdr* hdr, unsigned type) {
+
+        auto ext = get_ext(hdr, type);
+
+        if (ext && ext->len == 2) {
+            return (ext->data[0] << 8) | (ext->data[1]);
         }
 
         return std::nullopt;

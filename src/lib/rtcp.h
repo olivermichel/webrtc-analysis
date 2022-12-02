@@ -7,6 +7,8 @@ namespace rtcp {
 
     static bool contains_rtcp(const unsigned char* buf, std::size_t len) {
 
+        // https://www.rfc-editor.org/rfc/rfc5761#section-4
+
         return len >= 12 && ((buf[0] >> 6) & 0x03) == 0x02 && buf[1] > 191;
     }
 
@@ -18,6 +20,7 @@ namespace rtcp {
             case 202: return "sdes";
             case 203: return "bye";
             case 204: return "app";
+            case 205: return "generic";
             default:  return "unknown";
         }
     }
@@ -44,16 +47,36 @@ namespace rtcp {
             return v_p_rc & 0x1f;
         }
 
+        [[nodiscard]] unsigned fmt() const {
+
+            return v_p_rc & 0x1f;
+        }
+
+        struct report_block {
+            std::uint32_t ssrc                          = 0;
+            std::uint32_t fraction_lost_cumulative_loss = 0;
+            std::uint32_t ext_highest_seq_rx            = 0;
+            std::uint32_t interarrival_jitter           = 0;
+            std::uint32_t lsr                           = 0;
+            std::uint32_t dlsr                          = 0;
+        };
+
         struct sr {
             std::uint32_t ntp_ts_msw        = 0;
             std::uint32_t ntp_ts_lsw        = 0;
             std::uint32_t rtp_ts            = 0;
             std::uint32_t sender_pkt_count  = 0;
             std::uint32_t sender_byte_count = 0;
+            report_block* report_blocks;
+        };
+
+        struct rr {
+            report_block report_blocks[31];
         };
 
         union msg {
             struct sr sr;
+            struct rr rr;
         };
 
         msg msg;
