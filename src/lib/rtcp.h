@@ -5,6 +5,11 @@
 
 namespace rtcp {
 
+    static bool contains_rtcp(const unsigned char* buf, std::size_t len) {
+
+        return len >= 12 && ((buf[0] >> 6) & 0x03) == 0x02 && buf[1] > 191;
+    }
+
     static std::string pt_name(std::uint8_t pt) {
 
         switch (pt) {

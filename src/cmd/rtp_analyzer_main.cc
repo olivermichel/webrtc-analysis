@@ -4,6 +4,7 @@
 #include "../lib/pcap_file_reader.h"
 #include "../lib/pcap_util.h"
 #include "../lib/rtp.h"
+#include "../lib/rtcp.h"
 #include "../lib/stun.h"
 
 int main(int argc, char** argv) {
@@ -74,9 +75,23 @@ int main(int argc, char** argv) {
         auto pl_len = ntohs(udp->dgram_len);
 
         if (stun::contains_stun(pl_buf, pl_len)) {
-            std::cout << "STUN" << std::endl;
-        } else if (rtp::contains_rtp_or_rtcp(pl_buf, pl_len)) {
-            std::cout << "RTP/RTCP" << std::endl;
+
+            std::cout << "stun" << std::endl;
+
+        } else if (rtp::contains_rtp(pl_buf, pl_len)) {
+
+            auto* rtp = (rtp::hdr*) pl_buf;
+            std::cout << "rtp: " << rtp->payload_type() << std::endl;
+
+        } else if (rtcp::contains_rtcp(pl_buf, pl_len)) {
+
+            auto* rtcp = (rtcp::hdr*) pl_buf;
+            std::cout << "rtcp: " << (unsigned) rtcp->pt << std::endl;
+
+        } else {
+
+            counters.ignored++;
+            continue;
         }
 
         counters.processed++;

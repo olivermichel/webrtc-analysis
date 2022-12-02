@@ -13,9 +13,9 @@ namespace rtp {
 
     static const unsigned HDR_LEN = 12;
 
-    static bool contains_rtp_or_rtcp(const unsigned char* buf, std::size_t len) {
+    static bool contains_rtp(const unsigned char* buf, std::size_t len) {
 
-        return len >= 12 && ((buf[0] >> 6) & 0x03) == 0x02;
+        return len >= 12 && ((buf[0] >> 6) & 0x03) == 0x02 && buf[1] <= 191;
     }
 
     struct hdr {
