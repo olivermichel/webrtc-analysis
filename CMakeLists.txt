@@ -4,6 +4,7 @@ project(webrtc_analysis)
 set(CMAKE_CXX_STANDARD 17)
 
 include(cmake/pcap.cmake)
+include(cmake/catch2.cmake)
 
 add_executable(webrtc_analysis src/cmd/rtp_analyzer_main.cc
         src/lib/net.h
@@ -17,3 +18,5 @@ add_executable(webrtc_analysis src/cmd/rtp_analyzer_main.cc
 target_include_directories(webrtc_analysis PUBLIC ${PCAP_INCLUDE_DIRS})
 target_link_libraries(webrtc_analysis ${PCAP_LIBRARIES})
 set_target_properties(webrtc_analysis PROPERTIES LINKER_LANGUAGE CXX)
+
+add_subdirectory(test)
