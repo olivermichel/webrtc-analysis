@@ -3,9 +3,10 @@
 #include "../lib/net.h"
 #include "../lib/pcap_file_reader.h"
 #include "../lib/pcap_util.h"
-#include "../lib/rtp.h"
 #include "../lib/rtcp.h"
+#include "../lib/rtp.h"
 #include "../lib/stun.h"
+#include "../lib/twcc.h"
 
 int main(int argc, char** argv) {
 
@@ -125,15 +126,13 @@ int main(int argc, char** argv) {
                               << std::setfill('0') << ntohl(rep->ssrc) << std::dec << std::endl;
                 }
 
-
             } else if (rtcp->pt == 205 && rtcp->fmt() == 15) { // transport-cc
                 std::cout << "rtcp: transport-cc" << std::endl;
 
-                auto transport_cc = rtcp->msg.transport_cc;
-
-                std::cout << ntohs(transport_cc.base_seq) << "," << ntohs(transport_cc.pkt_status_count) << std::endl;
-                std::cout << std::dec << transport_cc.ref_time() << std::endl;
-                std::cout << std::dec << transport_cc.fb_pkt_count() << std::endl;
+                auto* twcc = (rtcp::twcc::hdr*) &(rtcp->msg);
+                std::cout << ntohs(twcc->base_seq) << "," << ntohs(twcc->pkt_status_count) << std::endl;
+                std::cout << std::dec << twcc->ref_time() << std::endl;
+                std::cout << std::dec << twcc->fb_pkt_count() << std::endl;
             }
 
         } else {

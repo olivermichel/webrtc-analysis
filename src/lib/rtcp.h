@@ -70,29 +70,13 @@ namespace rtcp {
             report_block* report_blocks;
         };
 
-        struct transport_cc {
-            std::uint32_t source_ssrc           = 0;
-            std::uint16_t base_seq              = 0;
-            std::uint16_t pkt_status_count      = 0;
-            std::uint32_t ref_time_fb_pkt_count = 0;
-
-            [[nodiscard]] int ref_time() const {
-                return ntohl(ref_time_fb_pkt_count) >> 8;
-            }
-
-            [[nodiscard]] unsigned fb_pkt_count() const {
-                return (unsigned) ntohl(ref_time_fb_pkt_count) & 0x000000ff;
-            }
-        };
-
         struct rr {
-            report_block report_blocks[31];
+            report_block* report_blocks;
         };
 
         union msg {
             struct sr sr;
             struct rr rr;
-            struct transport_cc transport_cc;
         };
 
         msg msg;

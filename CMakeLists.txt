@@ -11,6 +11,7 @@ add_executable(webrtc_analysis src/cmd/rtp_analyzer_main.cc
         src/lib/pcap_util.h
         src/lib/rtcp.h
         src/lib/rtp.h
+        src/lib/twcc.h
         src/lib/stun.h)
 
 target_include_directories(webrtc_analysis PUBLIC ${PCAP_INCLUDE_DIRS})
