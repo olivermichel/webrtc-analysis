@@ -82,6 +82,8 @@ namespace rtcp {
         msg msg;
     };
 
+    static const std::size_t HDR_LEN = 8;
+
     static std::ostream &operator<<(std::ostream &os, const rtcp::hdr &rtcp) {
         os << "rtcp: v="  << std::dec << rtcp.version()
            << ",p="      << std::dec << rtcp.padding()
