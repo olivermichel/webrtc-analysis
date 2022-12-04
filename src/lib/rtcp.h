@@ -51,38 +51,28 @@ namespace rtcp {
 
             return v_p_rc & 0x1f;
         }
+    };
 
-        struct report_block {
-            std::uint32_t ssrc                          = 0;
-            std::uint32_t fraction_lost_cumulative_loss = 0;
-            std::uint32_t ext_highest_seq_rx            = 0;
-            std::uint32_t interarrival_jitter           = 0;
-            std::uint32_t lsr                           = 0;
-            std::uint32_t dlsr                          = 0;
-        };
+    struct recep_report {
+        std::uint32_t ssrc                          = 0;
+        std::uint32_t fraction_lost_cumulative_loss = 0;
+        std::uint32_t ext_highest_seq_rx            = 0;
+        std::uint32_t interarrival_jitter           = 0;
+        std::uint32_t lsr                           = 0;
+        std::uint32_t dlsr                          = 0;
+    };
 
-        struct sr {
-            std::uint32_t ntp_ts_msw        = 0;
-            std::uint32_t ntp_ts_lsw        = 0;
-            std::uint32_t rtp_ts            = 0;
-            std::uint32_t sender_pkt_count  = 0;
-            std::uint32_t sender_byte_count = 0;
-            report_block* report_blocks;
-        };
-
-        struct rr {
-            report_block* report_blocks;
-        };
-
-        union msg {
-            struct sr sr;
-            struct rr rr;
-        };
-
-        msg msg;
+    struct sr {
+        std::uint32_t ntp_ts_msw        = 0;
+        std::uint32_t ntp_ts_lsw        = 0;
+        std::uint32_t rtp_ts            = 0;
+        std::uint32_t sender_pkt_count  = 0;
+        std::uint32_t sender_byte_count = 0;
     };
 
     static const std::size_t HDR_LEN = 8;
+    static const std::size_t SR_LEN  = 20;
+    static const std::size_t RECEP_REP_LEN = 24;
 
     static std::ostream &operator<<(std::ostream &os, const rtcp::hdr &rtcp) {
         os << "rtcp: v="  << std::dec << rtcp.version()

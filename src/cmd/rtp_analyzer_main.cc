@@ -1,8 +1,8 @@
 #include <iostream>
+#include <fstream>
 
 #include "../lib/net.h"
 #include "../lib/pcap_file_reader.h"
-#include "../lib/pcap_util.h"
 #include "../lib/rtcp.h"
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
@@ -23,6 +23,8 @@ int main(int argc, char** argv) {
         std::cerr << "error: only ethernet supported right now, exiting." << std::endl;
         exit(1);
     }
+
+    std::ofstream rtp_out("data/rtp.csv");
 
     while (pcap_in.next(pkt)) {
 
@@ -83,20 +85,13 @@ int main(int argc, char** argv) {
 
 
             auto* rtp = (rtp::hdr*) pl_buf;
-            std::cout << "rtp: " << rtp->payload_type() << std::endl;
-
             auto abs_send_time = rtp::get_abs_send_time(rtp, 2);
-
-            if (abs_send_time) {
-                std::cout << " - abs_send_time: " << *abs_send_time << std::endl;
-            }
-
             auto transport_cc_seq = rtp::get_transport_cc_seq(rtp, 4);
 
-            if (transport_cc_seq) {
-                std::cout << " - transport_cc_seq: " << *transport_cc_seq << std::endl;
-            }
-
+            rtp_out << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << ntohl(rtp->ssrc) << ","
+                    << rtp->payload_type() << "," << ntohs(rtp->seq) << "," << ntohl(rtp->ts) << ","
+                    << (transport_cc_seq ? std::to_string(*transport_cc_seq) : "NA") << ","
+                    << (abs_send_time ? std::to_string(*abs_send_time) : "NA") << std::endl;
 
         } else if (rtcp::contains_rtcp(pl_buf, pl_len)) {
 
@@ -104,35 +99,37 @@ int main(int argc, char** argv) {
 
             if (rtcp->pt == 200) { // sender report
 
+                /*
                 std::cout << "rtcp: sr" << std::endl;
 
-                auto sr = rtcp->msg.sr;
+                // auto* sr = (rtcp::sr*) (pl_buf + rtcp::HDR_LEN);
 
                 std::cout << " - report from: 0x" << std::hex << std::setw(8)
                           << std::setfill('0') << ntohl(rtcp->ssrc) << std::dec << std::endl;
-
+                */
 
             } else if (rtcp->pt == 201) { // receiver report
 
+                /*
                 std::cout << "rtcp: rr" << std::endl;
-
-                auto rr = rtcp->msg.rr;
 
                 for (auto i = 0; i < rtcp->recep_rep_count(); i++) {
 
-                    auto* rep = rr.report_blocks + i * sizeof(rtcp::hdr::report_block);
-//
+                    auto* recep_rep = (rtcp::recep_report*) (pl_buf + rtcp::HDR_LEN + i * rtcp::RECEP_REP_LEN);
+
                     std::cout << " - report for: 0x" << std::hex << std::setw(8)
-                              << std::setfill('0') << ntohl(rep->ssrc) << std::dec << std::endl;
+                              << std::setfill('0') << ntohl(recep_rep->ssrc) << std::dec << std::endl;
                 }
+                */
 
             } else if (rtcp->pt == 205 && rtcp->fmt() == 15) { // transport-cc
+                /*
                 std::cout << "rtcp: transport-cc" << std::endl;
 
-                auto* twcc = (rtcp::twcc::hdr*) &(rtcp->msg);
-                std::cout << ntohs(twcc->base_seq) << "," << ntohs(twcc->pkt_status_count) << std::endl;
-                std::cout << std::dec << twcc->ref_time() << std::endl;
-                std::cout << std::dec << twcc->fb_pkt_count() << std::endl;
+                auto* twcc = (rtcp::twcc::hdr*) (pl_buf + rtcp::HDR_LEN);
+                std::cout << " - base_seq: " << ntohs(twcc->base_seq) << std::endl;
+                std::cout << " - ref_time: " << std::dec << twcc->ref_time() * 64 << std::endl;
+                */
             }
 
         } else {
@@ -142,6 +139,8 @@ int main(int argc, char** argv) {
 
         counters.processed++;
     }
+
+    rtp_out.close();
 
     std::cout << " - " << counters.processed << " packets processed" << std::endl;
     std::cout << " - " << counters.ignored << " packets ignored" << std::endl;
