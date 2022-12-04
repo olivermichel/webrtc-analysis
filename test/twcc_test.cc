@@ -18,7 +18,8 @@ TEST_CASE("rtcp::twcc::hdr", "[twcc]") {
     CHECK(ntohs(rtcp->len) == 7);
     CHECK(ntohl(rtcp->ssrc) == 0x00000001);
 
-    auto* twcc = (rtcp::twcc::hdr*) (test::data::twcc_pkt1 + rtcp::HDR_LEN);
+    auto* twcc_buf = test::data::twcc_pkt1 + rtcp::HDR_LEN;
+    auto* twcc = (rtcp::twcc::hdr*) twcc_buf;
 
     CHECK(ntohl(twcc->source_ssrc) == 0xdd586eb6);
     CHECK(ntohs(twcc->base_seq) == 1);
@@ -26,38 +27,27 @@ TEST_CASE("rtcp::twcc::hdr", "[twcc]") {
     CHECK(twcc->ref_time() == 6197520);
     CHECK(twcc->fb_pkt_count() == 0);
 
-    auto pkts_remaining = ntohs(twcc->pkt_status_count);
-    auto offset = 0;
+    auto pkt_fb = rtcp::twcc::pkt_feedback(rtcp, twcc, twcc_buf + rtcp::twcc::HDR_LEN);
 
-    while (pkts_remaining > 0) {
+    CHECK(pkt_fb.size() == 9);
 
-        auto* chunk = (std::uint16_t*) (test::data::twcc_pkt1 + rtcp::HDR_LEN + rtcp::twcc::HDR_LEN + offset);
+    CHECK(pkt_fb[0].seq == 1);
+    CHECK(pkt_fb[0].received);
+    CHECK(pkt_fb[0].small_delta);
+    CHECK(pkt_fb[0].timestamp == 396641287); // 6197520 * 64 + 7
 
-        std::uint16_t type    = (ntohs(*chunk) & 0b10000000'00000000) >> 15;
-        std::uint16_t symbol  = (ntohs(*chunk) & 0b01100000'00000000) >> 13;
-        std::uint16_t run_len = (ntohs(*chunk) & 0b00011111'11111111);
+    CHECK(pkt_fb[1].seq == 2);
+    CHECK(pkt_fb[1].received);
+    CHECK(pkt_fb[1].small_delta);
+    CHECK(pkt_fb[1].timestamp == 396641290); // 6197520 * 64 + 7 + 3
 
-        pkts_remaining -= run_len;
-        offset += 2;
+    CHECK(pkt_fb[7].seq == 8);
+    CHECK(pkt_fb[7].received);
+    CHECK(pkt_fb[7].small_delta);
+    CHECK(pkt_fb[7].timestamp == 396641318); // 6197520 * 64 + 7 + 3 + 11 + 14 + 0 + 1 + 0 + 2
 
-        // parse associated recv delta here instead of in second loop if packet status is received
-        //  - use different offsets for recv delta and status chunks
-
-        // recv delta: 8 bits For each "packet received" status, in the packet
-        //               status chunks, a receive delta block will follow.  See
-        //               details below.
-
-        // The status of a packet is described using a 2-bit symbol:
-        //   00 Packet not received
-        //   01 Packet received, small delta
-        //   10 Packet received, large or negative delta
-        //   11 [Reserved]
-    }
-
-    for (pkts_remaining = ntohs(twcc->pkt_status_count); pkts_remaining > 0; offset++, pkts_remaining--) {
-
-        auto delta = (std::uint8_t*) (test::data::twcc_pkt1 + rtcp::HDR_LEN + rtcp::twcc::HDR_LEN + offset);
-        std::cout << (unsigned) *delta / 4 << std::endl;
-    }
-
+    CHECK(pkt_fb[8].seq == 9);
+    CHECK(pkt_fb[8].received);
+    CHECK(pkt_fb[8].small_delta);
+    CHECK(pkt_fb[8].timestamp == 396641324); // 6197520 * 64 + 7 + 3 + 11 + 14 + 0 + 1 + 0 + 2 + 6
 }
