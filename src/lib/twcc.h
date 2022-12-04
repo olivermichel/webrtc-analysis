@@ -19,4 +19,6 @@ namespace rtcp::twcc {
             return (unsigned) ntohl(ref_time_fb_pkt_count) & 0x000000ff;
         }
     };
+
+    static const std::size_t HDR_LEN = 12;
 }
