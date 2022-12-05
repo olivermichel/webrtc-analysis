@@ -7,6 +7,7 @@
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
 #include "../lib/twcc.h"
+#include "../lib/gcc_sim.h"
 
 int main(int argc, char** argv) {
 
@@ -25,6 +26,9 @@ int main(int argc, char** argv) {
     }
 
     std::ofstream rtp_out("data/rtp.csv");
+    std::ofstream ts_pairs_out("data/ts_pairs.csv");
+
+    gcc_sim gcc;
 
     while (pcap_in.next(pkt)) {
 
@@ -83,10 +87,13 @@ int main(int argc, char** argv) {
 
         } else if (rtp::contains_rtp(pl_buf, pl_len)) {
 
-
             auto* rtp = (rtp::hdr*) pl_buf;
             auto abs_send_time = rtp::get_abs_send_time(rtp, 2);
             auto transport_cc_seq = rtp::get_transport_cc_seq(rtp, 4);
+
+            if (transport_cc_seq && abs_send_time) {
+                gcc.add_media_pkt(*transport_cc_seq, *abs_send_time);
+            }
 
             rtp_out << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << ntohl(rtp->ssrc) << ","
                     << rtp->payload_type() << "," << ntohs(rtp->seq) << "," << ntohl(rtp->ts) << ","
@@ -123,10 +130,21 @@ int main(int argc, char** argv) {
                 */
 
             } else if (rtcp->pt == 205 && rtcp->fmt() == 15) { // transport-cc
+
+                auto* twcc = (rtcp::twcc::hdr*) (pl_buf + rtcp::HDR_LEN);
+                auto* twcc_chunks = pl_buf + rtcp::HDR_LEN + rtcp::twcc::HDR_LEN;
+
+
+                auto pkt_feedback = rtcp::twcc::pkt_feedback(rtcp, twcc, twcc_chunks);
+
+                for (const auto& pkt_fb: pkt_feedback) {
+                    gcc.add_twcc_fb(pkt_fb.seq, pkt_fb.received, pkt_fb.timestamp);
+                }
+
                 /*
                 std::cout << "rtcp: transport-cc" << std::endl;
 
-                auto* twcc = (rtcp::twcc::hdr*) (pl_buf + rtcp::HDR_LEN);
+
                 std::cout << " - base_seq: " << ntohs(twcc->base_seq) << std::endl;
                 std::cout << " - ref_time: " << std::dec << twcc->ref_time() * 64 << std::endl;
                 */
@@ -140,7 +158,16 @@ int main(int argc, char** argv) {
         counters.processed++;
     }
 
+    ts_pairs_out << "seq,rxd,tx_ts,rx_ts" << std::endl;
+
+    for (const auto& ts_pair: gcc.data()) {
+
+        ts_pairs_out << ts_pair.twcc_seq << "," << (ts_pair.rxd ? "1" : "0") << "," << ts_pair.tx_ts
+                     << "," << ts_pair.rx_ts << std::endl;
+    }
+
     rtp_out.close();
+    ts_pairs_out.close();
 
     std::cout << " - " << counters.processed << " packets processed" << std::endl;
     std::cout << " - " << counters.ignored << " packets ignored" << std::endl;

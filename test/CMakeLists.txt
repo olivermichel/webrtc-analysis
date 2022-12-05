@@ -1,8 +1,10 @@
 
 set(WEBRTC_ANALYSIS_SRC
+        ../src/lib/gcc_sim.h
         ../src/lib/twcc.h)
 
 set(WEBRTC_ANALYSIS_TEST_UNIT_SRC
+        gcc_sim_test.cc
         twcc_test.cc)
 
 add_executable(unit unit_main.cc

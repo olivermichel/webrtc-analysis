@@ -7,6 +7,7 @@ include(cmake/pcap.cmake)
 include(cmake/catch2.cmake)
 
 add_executable(webrtc_analysis src/cmd/rtp_analyzer_main.cc
+        src/lib/gcc_sim.h
         src/lib/net.h
         src/lib/pcap_file_reader.h src/lib/pcap_file_reader.cc
         src/lib/pcap_util.h
