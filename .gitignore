@@ -2,3 +2,4 @@
 build/
 data/
 test/include/catch.h
+.Rproj.user

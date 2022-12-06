@@ -127,6 +127,23 @@ namespace rtp {
         return std::nullopt;
     }
 
+    static std::optional<unsigned> get_abs_send_time_ms(const rtp::hdr* hdr, unsigned type) {
+
+        auto value = get_abs_send_time(hdr, type);
+
+        if (value) {
+
+            // 6.18 fixed-point encoding - 6 bits for seconds, 18 bits for fraction
+
+            unsigned sec = (*value >> 18);
+            unsigned frac = (*value & 0x3ffff);
+            double ms = (double) frac / (1 << 18) * 1000;
+            return (unsigned) (sec * 1000) + ms;
+        }
+
+        return std::nullopt;
+    }
+
     static std::optional<std::uint32_t> get_transport_cc_seq(const rtp::hdr* hdr, unsigned type) {
 
         auto ext = get_ext(hdr, type);

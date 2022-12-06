@@ -26,7 +26,20 @@ int main(int argc, char** argv) {
     }
 
     std::ofstream rtp_out("data/rtp.csv");
+
+    if (rtp_out.is_open()) {
+        rtp_out << "ts_s,ts_us,ssrc,pt,rtp_seq,rtp_ts,trans_cc_seq,trans_cc_send_time_ms" << std::endl;
+    } else {
+        std::cerr << "error: failed opening data/rtp.csv" << std::endl;
+        return 1;
+    }
+
     std::ofstream ts_pairs_out("data/ts_pairs.csv");
+
+    if (!rtp_out.is_open()) {
+        std::cerr << "error: failed opening data/ts_pairs.csv" << std::endl;
+        return 1;
+    }
 
     gcc_sim gcc;
 
@@ -88,17 +101,19 @@ int main(int argc, char** argv) {
         } else if (rtp::contains_rtp(pl_buf, pl_len)) {
 
             auto* rtp = (rtp::hdr*) pl_buf;
-            auto abs_send_time = rtp::get_abs_send_time(rtp, 2);
+
+            auto abs_send_time_ms = rtp::get_abs_send_time_ms(rtp, 2);
             auto transport_cc_seq = rtp::get_transport_cc_seq(rtp, 4);
 
-            if (transport_cc_seq && abs_send_time) {
-                gcc.add_media_pkt(*transport_cc_seq, *abs_send_time);
+            if (transport_cc_seq && abs_send_time_ms) {
+                gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
 
             rtp_out << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << ntohl(rtp->ssrc) << ","
                     << rtp->payload_type() << "," << ntohs(rtp->seq) << "," << ntohl(rtp->ts) << ","
                     << (transport_cc_seq ? std::to_string(*transport_cc_seq) : "NA") << ","
-                    << (abs_send_time ? std::to_string(*abs_send_time) : "NA") << std::endl;
+                    << (abs_send_time_ms ? std::to_string(*abs_send_time_ms) : "NA")
+                    << std::endl;
 
         } else if (rtcp::contains_rtcp(pl_buf, pl_len)) {
 
@@ -134,20 +149,11 @@ int main(int argc, char** argv) {
                 auto* twcc = (rtcp::twcc::hdr*) (pl_buf + rtcp::HDR_LEN);
                 auto* twcc_chunks = pl_buf + rtcp::HDR_LEN + rtcp::twcc::HDR_LEN;
 
-
                 auto pkt_feedback = rtcp::twcc::pkt_feedback(rtcp, twcc, twcc_chunks);
 
                 for (const auto& pkt_fb: pkt_feedback) {
                     gcc.add_twcc_fb(pkt_fb.seq, pkt_fb.received, pkt_fb.timestamp);
                 }
-
-                /*
-                std::cout << "rtcp: transport-cc" << std::endl;
-
-
-                std::cout << " - base_seq: " << ntohs(twcc->base_seq) << std::endl;
-                std::cout << " - ref_time: " << std::dec << twcc->ref_time() * 64 << std::endl;
-                */
             }
 
         } else {
@@ -157,6 +163,7 @@ int main(int argc, char** argv) {
 
         counters.processed++;
     }
+
 
     ts_pairs_out << "seq,rxd,tx_ts,rx_ts" << std::endl;
 
