@@ -1,8 +1,8 @@
-
 #ifndef WEBRTC_ANALYSIS_GCC_SIM_H
 #define WEBRTC_ANALYSIS_GCC_SIM_H
 
 #include <iostream>
+#include <vector>
 
 class gcc_sim {
 

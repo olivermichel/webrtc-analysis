@@ -5,6 +5,7 @@ set(WEBRTC_ANALYSIS_SRC
 
 set(WEBRTC_ANALYSIS_TEST_UNIT_SRC
         gcc_sim_test.cc
+        ntp_test.cc
         twcc_test.cc)
 
 add_executable(unit unit_main.cc

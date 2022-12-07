@@ -1,13 +1,100 @@
 #include <iostream>
-#include <fstream>
 
+#include "../lib/gcc_sim.h"
+#include "../lib/log.h"
 #include "../lib/net.h"
+#include "../lib/ntp.h"
 #include "../lib/pcap_file_reader.h"
 #include "../lib/rtcp.h"
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
 #include "../lib/twcc.h"
-#include "../lib/gcc_sim.h"
+
+class rtp_log : public log {
+
+public:
+    void write(timeval ts, unsigned ssrc, unsigned pt, unsigned short rtp_seq, unsigned rtp_ts,
+               std::optional<unsigned> twcc_seq, std::optional<unsigned> abs_send_time) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,ssrc,pt,rtp_seq,rtp_ts,trans_cc_seq,trans_cc_send_time_ms" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << ts.tv_sec << "," << ts.tv_usec << "," << ssrc << "," << pt << "," << rtp_seq << ","
+                << rtp_ts << "," << (twcc_seq ? std::to_string(*twcc_seq) : "NA") << ","
+                << (abs_send_time ? std::to_string(*abs_send_time) : "NA") << std::endl;
+        }
+    }
+};
+
+class rtcp_sr_log : public log {
+public:
+    void write(timeval ts, unsigned ssrc, unsigned rtp_ts) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,ssrc,rtp_ts" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << ts.tv_sec << "," << ts.tv_usec << "," << ssrc << rtp_ts << std::endl;
+        }
+    }
+};
+
+class rtcp_rr_log : public log {
+public:
+    void write(timeval ts, unsigned ssrc, double loss, unsigned jitter, double rtt_ms) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,ssrc,loss,jitter,rtt_ms" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << ts.tv_sec << "," << ts.tv_usec << "," << loss << "," << jitter << "," << rtt_ms
+                << std::endl;
+        }
+    }
+};
+
+class ts_pairs_log : public log {
+public:
+    void write(unsigned seq, bool rxd, unsigned tx_ts, unsigned rx_ts) {
+
+        if (!_line_count++) {
+            _fs << "seq,rxd,tx_ts,rx_ts" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << seq << "," << (rxd ? "1" : "0") << "," << tx_ts << "," << rx_ts << std::endl;
+        }
+    }
+};
+
+class stun_log : public log {
+public:
+    void write(timeval ts, std::uint16_t msg_type, const std::string& trans_id) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,msg_type,trans_id" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << std::dec << ts.tv_sec << "," << ts.tv_usec << "," << std::hex << std::setw(4)
+                << std::setfill('0') << msg_type << "," << trans_id << std::endl;
+        }
+    }
+};
+
+std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
+
+    std::stringstream ss;
+
+    for (auto i = 0; i < len; i++)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *(buf + i);
+
+    return ss.str();
+}
 
 int main(int argc, char** argv) {
 
@@ -15,6 +102,14 @@ int main(int argc, char** argv) {
         unsigned long processed = 0;
         unsigned long ignored = 0;
     } counters;
+
+    struct {
+        rtp_log      rtp;
+        rtcp_sr_log  rtcp_sr;
+        rtcp_rr_log  rtcp_rr;
+        ts_pairs_log ts_pairs;
+        stun_log     stun;
+    } logs;
 
     pcap_pkt pkt;
     pcap_file_reader pcap_in("data/webrtc.pcap");
@@ -25,19 +120,14 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    std::ofstream rtp_out("data/rtp.csv");
-
-    if (rtp_out.is_open()) {
-        rtp_out << "ts_s,ts_us,ssrc,pt,rtp_seq,rtp_ts,trans_cc_seq,trans_cc_send_time_ms" << std::endl;
-    } else {
-        std::cerr << "error: failed opening data/rtp.csv" << std::endl;
-        return 1;
-    }
-
-    std::ofstream ts_pairs_out("data/ts_pairs.csv");
-
-    if (!rtp_out.is_open()) {
-        std::cerr << "error: failed opening data/ts_pairs.csv" << std::endl;
+    try {
+        logs.rtp.open("data/rtp.csv");
+        logs.rtcp_sr.open("data/rtcp_sr.csv");
+        logs.rtcp_rr.open("data/rtcp_rr.csv");
+        logs.ts_pairs.open("data/ts_pairs.csv");
+        logs.stun.open("data/stun.csv");
+    } catch (std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
         return 1;
     }
 
@@ -96,7 +186,10 @@ int main(int argc, char** argv) {
 
         if (stun::contains_stun(pl_buf, pl_len)) {
 
-            // std::cout << "stun" << std::endl;
+            auto* stun = (stun::hdr*) pl_buf;
+            auto trans_id = hex_string_from_bytes(stun->trans_id, 12);
+
+            logs.stun.write(pkt.ts, ntohs(stun->type), trans_id);
 
         } else if (rtp::contains_rtp(pl_buf, pl_len)) {
 
@@ -109,11 +202,8 @@ int main(int argc, char** argv) {
                 gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
 
-            rtp_out << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << ntohl(rtp->ssrc) << ","
-                    << rtp->payload_type() << "," << ntohs(rtp->seq) << "," << ntohl(rtp->ts) << ","
-                    << (transport_cc_seq ? std::to_string(*transport_cc_seq) : "NA") << ","
-                    << (abs_send_time_ms ? std::to_string(*abs_send_time_ms) : "NA")
-                    << std::endl;
+            logs.rtp.write(pkt.ts, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
+                          ntohl(rtp->ts), transport_cc_seq, abs_send_time_ms);
 
         } else if (rtcp::contains_rtcp(pl_buf, pl_len)) {
 
@@ -121,28 +211,29 @@ int main(int argc, char** argv) {
 
             if (rtcp->pt == 200) { // sender report
 
-                /*
-                std::cout << "rtcp: sr" << std::endl;
-
-                // auto* sr = (rtcp::sr*) (pl_buf + rtcp::HDR_LEN);
-
-                std::cout << " - report from: 0x" << std::hex << std::setw(8)
-                          << std::setfill('0') << ntohl(rtcp->ssrc) << std::dec << std::endl;
-                */
+                auto* sr = (rtcp::sr*) (pl_buf + rtcp::HDR_LEN);
+                logs.rtcp_sr.write(pkt.ts, ntohl(rtcp->ssrc), ntohl(sr->rtp_ts));
 
             } else if (rtcp->pt == 201) { // receiver report
 
-                /*
-                std::cout << "rtcp: rr" << std::endl;
+                auto pkt_ntp_ts = ntp::ntp_from_timeval(pkt.ts);
 
                 for (auto i = 0; i < rtcp->recep_rep_count(); i++) {
 
                     auto* recep_rep = (rtcp::recep_report*) (pl_buf + rtcp::HDR_LEN + i * rtcp::RECEP_REP_LEN);
 
-                    std::cout << " - report for: 0x" << std::hex << std::setw(8)
-                              << std::setfill('0') << ntohl(recep_rep->ssrc) << std::dec << std::endl;
+                    double loss = (double) (ntohl(recep_rep->fraction_lost_cumulative_loss) >> 24) / 256;
+
+                    std::uint32_t a = ntp::middle_bits_from_ntp(pkt_ntp_ts);
+                    std::uint32_t dlsr = ntohl(recep_rep->dlsr);
+                    std::uint32_t lsr = ntohl(recep_rep->lsr);
+                    std::uint32_t rtt = a - dlsr - lsr;
+                    auto rtt_ms = ((double)(rtt & 0x0000ffff) / (1 << 16) + (rtt >> 16)) * 1000;
+
+                    unsigned jitter = ntohl(recep_rep->interarrival_jitter);
+
+                    logs.rtcp_rr.write(pkt.ts, ntohl(recep_rep->ssrc), loss, jitter, rtt_ms);
                 }
-                */
 
             } else if (rtcp->pt == 205 && rtcp->fmt() == 15) { // transport-cc
 
@@ -164,17 +255,9 @@ int main(int argc, char** argv) {
         counters.processed++;
     }
 
-
-    ts_pairs_out << "seq,rxd,tx_ts,rx_ts" << std::endl;
-
-    for (const auto& ts_pair: gcc.data()) {
-
-        ts_pairs_out << ts_pair.twcc_seq << "," << (ts_pair.rxd ? "1" : "0") << "," << ts_pair.tx_ts
-                     << "," << ts_pair.rx_ts << std::endl;
+    for (const auto& p: gcc.data()) {
+        logs.ts_pairs.write(p.twcc_seq, p.rxd, p.tx_ts, p.rx_ts);
     }
-
-    rtp_out.close();
-    ts_pairs_out.close();
 
     std::cout << " - " << counters.processed << " packets processed" << std::endl;
     std::cout << " - " << counters.ignored << " packets ignored" << std::endl;
