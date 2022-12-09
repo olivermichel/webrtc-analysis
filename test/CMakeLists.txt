@@ -1,10 +1,12 @@
 
 set(WEBRTC_ANALYSIS_SRC
+        ../src/lib/av1.h ../src/lib/av1.cc
         ../src/lib/gcc_sim.h
         ../src/lib/util.h
         ../src/lib/twcc.h)
 
 set(WEBRTC_ANALYSIS_TEST_UNIT_SRC
+        av1_test.cc
         gcc_sim_test.cc
         ntp_test.cc
         twcc_test.cc

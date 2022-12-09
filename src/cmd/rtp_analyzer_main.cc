@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "../lib/av1.h"
 #include "../lib/gcc_sim.h"
 #include "../lib/log.h"
 #include "../lib/net.h"
@@ -201,6 +202,51 @@ int main(int argc, char** argv) {
             if (transport_cc_seq && abs_send_time_ms) {
                 gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
+
+            auto av1 = rtp::get_ext(rtp, 13);
+
+            if (av1) {
+
+                auto len = av1->len;
+                auto* bytes = av1->data;
+
+                auto* av1_mand = (av1::mandatory_descriptor_fields*) bytes;
+
+//                std::cout << (av1_mand->start_of_frame() ? "1" : "0") << ","
+//                          << (av1_mand->end_of_frame() ? "1" : "0") << ","
+//                          << av1_mand->frame_number() << ","
+//                          << av1_mand->template_id() << ",";
+
+                if (av1->len > 3) {
+
+                    auto* extended_start = bytes + 3;;
+
+                    bool template_dependency_structure_present_flag = (extended_start[0] >> 7) & 1;
+                    bool active_decode_targets_present_flag = (extended_start[0] >> 6) & 1;
+                    bool custom_dtis_flag = (extended_start[0] >> 5) & 1;
+                    bool custom_fdiffs_flag = (extended_start[0] >> 4) & 1;
+                    bool custom_chains_flag = (extended_start[0] >> 3) & 1;
+
+                    std::cout
+                        << "template_dependency_structure_present_flag:  " << (template_dependency_structure_present_flag ? "1" : "0") << std::endl
+                        << "active_decode_targets_present_flag: " << (active_decode_targets_present_flag ? "1" : "0") << std::endl
+                        << "custom_dtis_flag: " << (custom_dtis_flag ? "1" : "0") << std::endl
+                        << "custom_fdiffs_flag: " << (custom_fdiffs_flag ? "1" : "0") << std::endl
+                        << "custom_chains_flag: " << (custom_chains_flag ? "1" : "0") << std::endl;
+
+                    if (template_dependency_structure_present_flag) {
+
+
+
+
+
+                    }
+
+                }
+
+            }
+
+
 
             logs.rtp.write(pkt.ts, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
                           ntohl(rtp->ts), transport_cc_seq, abs_send_time_ms);

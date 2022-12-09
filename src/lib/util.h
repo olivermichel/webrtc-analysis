@@ -6,7 +6,7 @@
 
 namespace util {
 
-    std::uint32_t extract_bits(const std::vector<bool>& bits, unsigned from, unsigned len = 1) {
+    static std::uint32_t extract_bits(const std::vector<bool>& bits, unsigned from, unsigned len = 1) {
 
         if (from + len > bits.size())
             throw std::invalid_argument("util:extract_bits: requested range outside of bit vector");
