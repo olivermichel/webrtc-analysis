@@ -1,12 +1,14 @@
 
 set(WEBRTC_ANALYSIS_SRC
         ../src/lib/gcc_sim.h
+        ../src/lib/util.h
         ../src/lib/twcc.h)
 
 set(WEBRTC_ANALYSIS_TEST_UNIT_SRC
         gcc_sim_test.cc
         ntp_test.cc
-        twcc_test.cc)
+        twcc_test.cc
+        util_test.cc)
 
 add_executable(unit unit_main.cc
         ${WEBRTC_ANALYSIS_SRC}
