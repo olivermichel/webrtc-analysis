@@ -1,5 +1,6 @@
+.Rproj.user
 .idea
 build/
 data/
+ext/include
 test/include/catch.h
-.Rproj.user

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cxxopts/cxxopts.h>
 
 #include "../lib/av1.h"
 #include "../lib/gcc_sim.h"
@@ -10,6 +11,48 @@
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
 #include "../lib/twcc.h"
+
+struct config {
+    std::string input_file_path;
+};
+
+void print_help(cxxopts::Options& opts, int exit_code = 0) {
+
+    std::ostream& os = (exit_code ? std::cerr : std::cout);
+    os << opts.help({""}) << std::endl;
+    exit(exit_code);
+}
+
+cxxopts::Options set_options() {
+
+    cxxopts::Options opts("rtp_analyzer", "WebRTC RTP Analyzer");
+
+    opts.add_options()
+            ("i,in", "input file",
+             cxxopts::value<std::string>(), "IN.pcap")
+            ("h,help", "print this help message");
+
+    return opts;
+}
+
+config parse_options(cxxopts::Options opts, int argc, char** argv) {
+
+
+    config config {};
+
+    auto parsed = opts.parse(argc, argv);
+
+    if (parsed.count("i")) {
+        config.input_file_path = parsed["i"].as<std::string>();
+    } else {
+        print_help(opts, 1);
+    }
+
+    if (parsed.count("h"))
+        print_help(opts);
+
+    return config;
+}
 
 class rtp_log : public log {
 
@@ -98,6 +141,10 @@ std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
 }
 
 int main(int argc, char** argv) {
+
+
+    auto config = parse_options(set_options(), argc, argv);
+
 
     struct {
         unsigned long processed = 0;
@@ -203,6 +250,7 @@ int main(int argc, char** argv) {
                 gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
 
+            /*
             auto av1 = rtp::get_ext(rtp, 13);
 
             if (av1) {
@@ -246,7 +294,7 @@ int main(int argc, char** argv) {
 
             }
 
-
+            */
 
             logs.rtp.write(pkt.ts, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
                           ntohl(rtp->ts), transport_cc_seq, abs_send_time_ms);
