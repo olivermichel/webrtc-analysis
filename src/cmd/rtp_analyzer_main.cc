@@ -11,6 +11,7 @@
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
 #include "../lib/twcc.h"
+#include "../lib/util.h"
 
 struct config {
     std::string input_file_path;
@@ -36,7 +37,6 @@ cxxopts::Options set_options() {
 }
 
 config parse_options(cxxopts::Options opts, int argc, char** argv) {
-
 
     config config {};
 
@@ -130,6 +130,26 @@ public:
     }
 };
 
+class av1_log : public log {
+public:
+    void write(timeval ts, const av1::dependency_descriptor& av1_dd) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,start_of_frame,end_of_frame,template_id,frame_number" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+
+            _fs << std::dec << ts.tv_sec << "," << ts.tv_usec << ","
+                << (av1_dd.mandatory_fields().start_of_frame() ? "1" : "0") << ","
+                << (av1_dd.mandatory_fields().end_of_frame() ? "1" : "0") << ","
+                << av1_dd.mandatory_fields().template_id() << ","
+                << av1_dd.mandatory_fields().frame_number()
+                << std::endl;
+        }
+    }
+};
+
 std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
 
     std::stringstream ss;
@@ -157,6 +177,7 @@ int main(int argc, char** argv) {
         rtcp_rr_log  rtcp_rr;
         ts_pairs_log ts_pairs;
         stun_log     stun;
+        av1_log      av1;
     } logs;
 
     pcap_pkt pkt;
@@ -174,6 +195,7 @@ int main(int argc, char** argv) {
         logs.rtcp_rr.open("data/rtcp_rr.csv");
         logs.ts_pairs.open("data/ts_pairs.csv");
         logs.stun.open("data/stun.csv");
+        logs.av1.open("data/av1.csv");
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         return 1;
@@ -250,14 +272,15 @@ int main(int argc, char** argv) {
                 gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
 
-            /*
             auto av1 = rtp::get_ext(rtp, 13);
 
             if (av1) {
 
-                auto len = av1->len;
-                auto* bytes = av1->data;
+                av1::dependency_descriptor av1_dd{av1->data, av1->len};
 
+                logs.av1.write(pkt.ts, av1_dd);
+
+                /*
                 auto* av1_mand = (av1::mandatory_descriptor_fields*) bytes;
 
 //                std::cout << (av1_mand->start_of_frame() ? "1" : "0") << ","
@@ -285,16 +308,12 @@ int main(int argc, char** argv) {
                     if (template_dependency_structure_present_flag) {
 
 
-
-
-
                     }
 
                 }
+                */
 
             }
-
-            */
 
             logs.rtp.write(pkt.ts, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
                           ntohl(rtp->ts), transport_cc_seq, abs_send_time_ms);

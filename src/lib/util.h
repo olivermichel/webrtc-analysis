@@ -3,6 +3,8 @@
 #define WEBRTC_ANALYSIS_UTIL_H
 
 #include <vector>
+#include <sstream>
+#include <iomanip>
 
 namespace util {
 
@@ -43,6 +45,16 @@ namespace util {
         unsigned extra_bit = extract_bits(bits, from + w - 1, 1);
 
         return std::make_pair((v << 1) - m + extra_bit, w);
+    }
+
+    static std::string hex_string(const unsigned char* buf, unsigned len) {
+
+        std::stringstream ss;
+
+        for (unsigned i = 0; i < len; i++)
+            ss << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *(buf + i);
+
+        return ss.str();
     }
 }
 
