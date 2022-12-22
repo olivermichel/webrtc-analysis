@@ -21,6 +21,29 @@ namespace util {
 
         return a;
     }
+
+    static std::pair<std::uint32_t, unsigned> extract_non_symmetric(const std::vector<bool>& bits, unsigned from, unsigned n) {
+
+        unsigned w = 0, x = n;
+
+        while (x != 0) {
+            x = x >> 1;
+            w++;
+        }
+
+        unsigned m = (1 << w) - n;
+
+
+        std::uint32_t v = extract_bits(bits, from, w - 1);
+
+        if (v < m) {
+            return std::make_pair(v, w-1);
+        }
+
+        unsigned extra_bit = extract_bits(bits, from + w - 1, 1);
+
+        return std::make_pair((v << 1) - m + extra_bit, w);
+    }
 }
 
 

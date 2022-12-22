@@ -27,5 +27,19 @@ TEST_CASE("util::extract_bits", "[util]") {
         CHECK(util::extract_bits(v1, 4, 4) == 0b1110);
 
     }
+}
 
+TEST_CASE("util::extract_non_symmetric", "[util]") {
+
+    std::vector<bool> v1 = { false, false };
+    std::vector<bool> v2 = { false, true };
+    std::vector<bool> v3 = { true, false };
+    std::vector<bool> v4 = { true, true, false };
+    std::vector<bool> v5 = { true, true, true };
+
+    CHECK(util::extract_non_symmetric(v1, 0, 5) == std::pair<std::uint32_t, std::uint32_t>{0b000, 2});
+    CHECK(util::extract_non_symmetric(v2, 0, 5) == std::pair<std::uint32_t, std::uint32_t>{0b001, 2});
+    CHECK(util::extract_non_symmetric(v3, 0, 5) == std::pair<std::uint32_t, std::uint32_t>{0b010, 2});
+    CHECK(util::extract_non_symmetric(v4, 0, 5) == std::pair<std::uint32_t, std::uint32_t>{0b011, 3});
+    CHECK(util::extract_non_symmetric(v5, 0, 5) == std::pair<std::uint32_t, std::uint32_t>{0b100, 3});
 }
