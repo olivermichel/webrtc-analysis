@@ -116,6 +116,20 @@ namespace rtp {
         return std::nullopt;
     }
 
+    /// returns the total length in bytes of RTP extension headers including padding but excluding
+    /// the 4-byte extension header starting with 0xbede
+    static unsigned total_ext_len(const rtp::hdr* hdr) {
+
+        const auto* buf = reinterpret_cast<const unsigned char*>(hdr);
+        const auto* ext_buf = buf + 12;
+
+        if (hdr->csrc_count() == 0 && hdr->extension() == 1) {
+            return ((ext_buf[2] << 8) + (ext_buf[3])) * 4;
+        } else {
+            return 0;
+        }
+    }
+
     static std::optional<std::uint32_t> get_abs_send_time(const rtp::hdr* hdr, unsigned type) {
 
         auto ext = get_ext(hdr, type);

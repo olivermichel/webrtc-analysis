@@ -32,9 +32,112 @@ namespace test::data {
      */
 
     static unsigned char twcc_pkt1[] = {
-            0xaf, 0xcd, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01,
-            0xdd, 0x58, 0x6e, 0xb6, 0x00, 0x01, 0x00, 0x09,
-            0x5e, 0x91, 0x10, 0x00, 0x20, 0x09, 0x1c, 0x0c,
-            0x2c, 0x38, 0x00, 0x04, 0x00, 0x08, 0x18, 0x01
+        0xaf, 0xcd, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01,
+        0xdd, 0x58, 0x6e, 0xb6, 0x00, 0x01, 0x00, 0x09,
+        0x5e, 0x91, 0x10, 0x00, 0x20, 0x09, 0x1c, 0x0c,
+        0x2c, 0x38, 0x00, 0x04, 0x00, 0x08, 0x18, 0x01
+    };
+
+    /*
+     * Real-Time Transport Protocol
+     *   10.. .... = Version: RFC 1889 Version (2)
+     *   ..0. .... = Padding: False
+     *   ...1 .... = Extension: True
+     *   .... 0000 = Contributing source identifiers count: 0
+     *   0... .... = Marker: False
+     *   Payload type: Unassigned (45)
+     *   Sequence number: 6751
+     *   Timestamp: 3557360969
+     *   Synchronization Source identifier: 0xf7b16e83 (4155600515)
+     *   Defined by profile: Unknown (0xbede)
+     *   Extension length: 3
+     *   Header extensions
+     *     RFC 5285 Header Extension (One-Byte Header)
+     *       Identifier: 2
+     *       Length: 3
+     *       Extension Data: f34350
+     *     RFC 5285 Header Extension (One-Byte Header)
+     *       Identifier: 4
+     *       Length: 2
+     *       Extension Data: 009b
+     *     RFC 5285 Header Extension (One-Byte Header)
+     *       Identifier: 13
+     *       Length: 3
+     *       Extension Data: 810045
+     */
+
+    static unsigned char rtp_pkt1[] = {
+        0x90, 0x2d, 0x1a, 0x5f, 0xd4, 0x09, 0x05, 0x49,
+        0xf7, 0xb1, 0x6e, 0x83, 0xbe, 0xde, 0x00, 0x03,
+
+        0x22, 0xf3, 0x43, 0x50, // 4
+        0x41, 0x00, 0x9b, // 3
+        0xd2,0x81, 0x00, 0x45, // 4
+        0x00, // 1 - padding
+    };
+
+    /*
+     * Real-Time Transport Protocol
+     * 10.. .... = Version: RFC 1889 Version (2)
+     * ..0. .... = Padding: False
+     * ...1 .... = Extension: True
+     * .... 0000 = Contributing source identifiers count: 0
+     * 1... .... = Marker: True
+     * Payload type: Unassigned (45)
+     * Sequence number: 6612
+     * Timestamp: 3557156759
+     * Synchronization Source identifier: 0xf7b16e83 (4155600515)
+     * Defined by profile: Unknown (0xbede)
+     * Extension length: 8
+     * Header extensions
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 2
+     *     Length: 3
+     *     Extension Data: ea432b
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 4
+     *     Length: 2
+     *     Extension Data: 0004
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 9
+     *     Length: 1
+     *     Extension Data: 30
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 3
+     *     Length: 1
+     *     Extension Data: 00
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 6
+     *     Length: 1
+     *     Extension Data: 02
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 7
+     *     Length: 13
+     *     Extension Data: 0100030009000a002300000000
+     *   RFC 5285 Header Extension (One-Byte Header)
+     *     Identifier: 13
+     *     Length: 3
+     *     Extension Data: 400001
+     */
+
+    static unsigned char rtp_pkt2[] = {
+        0x90, 0xad, 0x19, 0xd4, 0xd4, 0x05, 0xe7, 0x97,
+        0xf7, 0xb1, 0x6e, 0x83, 0xbe, 0xde, 0x00, 0x08,
+
+        0x22, 0xea, 0x43, 0x2b,
+
+        0x41, 0x00, 0x04,
+
+        0x90,0x30,
+
+        0x30, 0x00,
+
+        0x60, 0x02,
+
+        0x7c, 0x01, 0x00,0x03, 0x00, 0x09, 0x00, 0x0a,
+        0x00, 0x23, 0x00,0x00, 0x00, 0x00,
+
+        0xd2, 0x40, 0x00, 0x01,
+        0x00 // padding
     };
 }
