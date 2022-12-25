@@ -9,6 +9,7 @@ set(WEBRTC_ANALYSIS_TEST_UNIT_SRC
         av1_test.cc
         gcc_sim_test.cc
         ntp_test.cc
+        rtp_test.cc
         twcc_test.cc
         util_test.cc)
 

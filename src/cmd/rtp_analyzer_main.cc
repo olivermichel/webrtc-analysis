@@ -132,10 +132,11 @@ public:
 
 class av1_log : public log {
 public:
-    void write(timeval ts, const av1::dependency_descriptor& av1_dd) {
+    void write(timeval ts, const av1::dependency_descriptor& av1_dd, unsigned media_len) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,start_of_frame,end_of_frame,template_id,frame_number" << std::endl;
+            _fs << "ts_s,ts_us,start_of_frame,end_of_frame,template_id,frame_number,media_len"
+                << std::endl;
         }
 
         if (_fs.is_open()) {
@@ -144,7 +145,8 @@ public:
                 << (av1_dd.mandatory_fields().start_of_frame() ? "1" : "0") << ","
                 << (av1_dd.mandatory_fields().end_of_frame() ? "1" : "0") << ","
                 << av1_dd.mandatory_fields().template_id() << ","
-                << av1_dd.mandatory_fields().frame_number()
+                << av1_dd.mandatory_fields().frame_number() << ","
+                << media_len
                 << std::endl;
         }
     }
@@ -265,6 +267,7 @@ int main(int argc, char** argv) {
 
             auto* rtp = (rtp::hdr*) pl_buf;
 
+
             auto abs_send_time_ms = rtp::get_abs_send_time_ms(rtp, 2);
             auto transport_cc_seq = rtp::get_transport_cc_seq(rtp, 4);
 
@@ -272,13 +275,15 @@ int main(int argc, char** argv) {
                 gcc.add_media_pkt(*transport_cc_seq, *abs_send_time_ms);
             }
 
+            auto media_len = pl_len - rtp::HDR_LEN - rtp::total_ext_len(rtp);
+
             auto av1 = rtp::get_ext(rtp, 13);
 
             if (av1) {
 
                 av1::dependency_descriptor av1_dd{av1->data, av1->len};
 
-                logs.av1.write(pkt.ts, av1_dd);
+                logs.av1.write(pkt.ts, av1_dd, media_len);
 
                 /*
                 auto* av1_mand = (av1::mandatory_descriptor_fields*) bytes;
