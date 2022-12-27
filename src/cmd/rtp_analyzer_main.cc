@@ -11,7 +11,6 @@
 #include "../lib/rtp.h"
 #include "../lib/stun.h"
 #include "../lib/twcc.h"
-#include "../lib/util.h"
 
 struct config {
     std::string input_file_path;
@@ -152,6 +151,27 @@ public:
     }
 };
 
+class av1_dd_log : public log {
+public:
+    void write(timeval ts, const unsigned char* buf, unsigned len) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,av1_dd" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+
+            _fs << std::dec << ts.tv_sec << "," << ts.tv_usec << ",";
+
+            for (auto i = 0; i < len; i++) {
+                _fs << std::hex << std::setw(2) << std::setfill('0') << (unsigned) buf[i];
+            }
+
+            _fs << std::endl;
+        }
+    }
+};
+
 std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
 
     std::stringstream ss;
@@ -180,10 +200,11 @@ int main(int argc, char** argv) {
         ts_pairs_log ts_pairs;
         stun_log     stun;
         av1_log      av1;
+        av1_dd_log   av1_dd;
     } logs;
 
     pcap_pkt pkt;
-    pcap_file_reader pcap_in("data/webrtc.pcap");
+    pcap_file_reader pcap_in(config.input_file_path);
 
     if (pcap_in.datalink_type() != pcap_link_type::eth
         && pcap_in.datalink_type() != pcap_link_type::null) {
@@ -192,12 +213,15 @@ int main(int argc, char** argv) {
     }
 
     try {
+
         logs.rtp.open("data/rtp.csv");
         logs.rtcp_sr.open("data/rtcp_sr.csv");
         logs.rtcp_rr.open("data/rtcp_rr.csv");
         logs.ts_pairs.open("data/ts_pairs.csv");
         logs.stun.open("data/stun.csv");
         logs.av1.open("data/av1.csv");
+        logs.av1_dd.open("data/av1_dd.csv");
+
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
         return 1;
@@ -241,10 +265,10 @@ int main(int argc, char** argv) {
 
         auto* udp = (net::udp::hdr*) (pkt.buf + offset);
 
-        if ((ntohl(ipv4->src_addr) == 0x0a081d1c && ntohl(ipv4->dst_addr) == 0x0a081d1c
-            && ntohs(udp->src_port) == 60522 && ntohs(udp->dst_port) == 62264) ||
-            (ntohl(ipv4->src_addr) == 0x0a081d1c && ntohl(ipv4->dst_addr) == 0x0a081d1c
-             && ntohs(udp->src_port) == 62264 && ntohs(udp->dst_port) == 60522)) {
+        if ((ntohl(ipv4->src_addr) == 0xac101534 && ntohl(ipv4->dst_addr) == 0xac101534
+            && ntohs(udp->src_port) == 57438 && ntohs(udp->dst_port) == 49846) ||
+            (ntohl(ipv4->src_addr) == 0xac101534 && ntohl(ipv4->dst_addr) == 0xac101534
+             && ntohs(udp->src_port) == 49846 && ntohs(udp->dst_port) == 57438)) {
 
         } else {
             counters.ignored++;
@@ -267,7 +291,6 @@ int main(int argc, char** argv) {
 
             auto* rtp = (rtp::hdr*) pl_buf;
 
-
             auto abs_send_time_ms = rtp::get_abs_send_time_ms(rtp, 2);
             auto transport_cc_seq = rtp::get_transport_cc_seq(rtp, 4);
 
@@ -284,6 +307,10 @@ int main(int argc, char** argv) {
                 av1::dependency_descriptor av1_dd{av1->data, av1->len};
 
                 logs.av1.write(pkt.ts, av1_dd, media_len);
+
+                if (av1_dd.template_dependency_structure_present_flag()) {
+                    logs.av1_dd.write(pkt.ts, av1->data, av1->len);
+                }
 
                 /*
                 auto* av1_mand = (av1::mandatory_descriptor_fields*) bytes;
