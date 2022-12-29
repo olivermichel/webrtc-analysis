@@ -57,7 +57,7 @@ namespace rtp {
 
     struct ext {
         unsigned short type = 0, len = 0;
-        unsigned char data[16] = {0};
+        unsigned char data[64] = {0};
 
         bool operator==(const struct ext& other) const {
             return type == other.type && len == other.len
@@ -80,32 +80,67 @@ namespace rtp {
         }
     };
 
+    static std::uint16_t ext_profile(const rtp::hdr* hdr) {
+
+        if (!hdr->extension())
+            throw std::logic_error("rtp::has_one_byte_ext_headers: no extensions");
+
+        const auto* ext_buf = reinterpret_cast<const unsigned char*>(hdr) + rtp::HDR_LEN;
+
+        return ntohs(*(std::uint16_t*) ext_buf);
+    }
+
+    static bool has_one_byte_ext_headers(const rtp::hdr* hdr) {
+
+        // https://www.rfc-editor.org/rfc/rfc8285.html#section-4.2
+
+        return ext_profile(hdr) == 0xbede;
+    }
+
+    static bool has_two_byte_ext_headers(const rtp::hdr* hdr) {
+
+        // https://www.rfc-editor.org/rfc/rfc8285.html#section-4.3
+
+        return (ext_profile(hdr) >> 4) == 0x100;
+    }
+
+    /// returns a std::optional wrapping a struct ext representing the extension header with
+    /// identifier type from header hdr
+    ///   - returns std::nullopt if extension header does not exist
+    ///   - handles both one- and two-byte extension headers
     static std::optional<struct ext> get_ext(const rtp::hdr* hdr, unsigned type) {
 
         struct ext ext;
-
-        const auto* buf = reinterpret_cast<const unsigned char*>(hdr);
-        const auto* extBuf = buf + 12;
+        const auto* ext_buf = reinterpret_cast<const unsigned char*>(hdr) + rtp::HDR_LEN;
+        bool has_one_byte_ext_headers = rtp::has_one_byte_ext_headers(hdr);
 
         if (hdr->csrc_count() == 0 && hdr->extension() == 1) {
 
-            std::uint16_t extBytes = ((extBuf[2] << 8) + (extBuf[3])) * 4;
+            std::uint16_t ext_total_len = ((ext_buf[2] << 8) + (ext_buf[3])) * 4;
 
-            for (unsigned i = 4; i < extBytes + 4;) {
+            for (unsigned i = 4; i < ext_total_len + 4;) {
 
-                if (extBuf[i] != 0) {
+                if (ext_buf[i] != 0) {
 
-                    unsigned short extType = (extBuf[i] >> 4) & 0x0f;
-                    unsigned short extLen = (extBuf[i] & 0x0f) + 1;
+                    unsigned short ext_type = 0, ext_len = 0;
 
-                    if (extType == type) {
-                        ext.type = extType;
-                        ext.len = extLen;
-                        std::memcpy(ext.data, extBuf + i + 1,ext.len);
+                    if (has_one_byte_ext_headers) {
+                        ext_type = (ext_buf[i] >> 4) & 0x0f;
+                        ext_len  = (ext_buf[i] & 0x0f) + 1;
+                    } else {
+                        ext_type = ext_buf[i];
+                        ext_len  = ext_buf[i+1];
+                    }
+
+                    if (ext_type == type) {
+                        ext.type = ext_type;
+                        ext.len = ext_len;
+                        std::memcpy(ext.data, ext_buf + i + (has_one_byte_ext_headers ? 1 : 2),
+                                    ext.len);
                         return ext;
                     }
 
-                    i += (extLen + 1);
+                    i += (ext_len + (has_one_byte_ext_headers ? 1 : 2));
 
                 } else { // padding
                     i++;
