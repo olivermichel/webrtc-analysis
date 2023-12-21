@@ -215,7 +215,7 @@ unsigned av1::dependency_descriptor::_parse_template_dtis(const std::vector<bool
 
     for (auto template_index = 0; template_index < _template_cnt; template_index++) {
         for (auto dt_index = 0; dt_index < _dt_cnt; dt_index++) {
-            auto dti = (enum class dti) util::extract_bits(bits, i, 2);
+            auto dti = (enum dti) util::extract_bits(bits, i, 2);
             _templates[template_index + _template_id_offset].dtis.push_back(dti);
             i += 2;
         }

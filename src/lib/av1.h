@@ -51,6 +51,14 @@ namespace av1 {
 
         [[nodiscard]] const std::map<unsigned, struct frame_dependency_template>& templates() const;
 
+        inline unsigned len() const {
+            return _len;
+        }
+
+        inline const unsigned char* bytes() const {
+            return _buf;
+        }
+
     private:
 
         void _parse_bytes();

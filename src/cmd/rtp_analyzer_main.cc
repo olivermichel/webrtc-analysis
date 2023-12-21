@@ -28,8 +28,7 @@ cxxopts::Options set_options() {
     cxxopts::Options opts("rtp_analyzer", "WebRTC RTP Analyzer");
 
     opts.add_options()
-            ("i,in", "input file",
-             cxxopts::value<std::string>(), "IN.pcap")
+            ("i,in", "input file", cxxopts::value<std::string>(), "IN.pcap")
             ("h,help", "print this help message");
 
     return opts;
@@ -53,19 +52,31 @@ config parse_options(cxxopts::Options opts, int argc, char** argv) {
     return config;
 }
 
+std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
+
+    std::stringstream ss;
+
+    for (auto i = 0; i < len; i++)
+        ss << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *(buf + i);
+
+    return ss.str();
+}
+
 class rtp_log : public log {
 
 public:
-    void write(timeval ts, unsigned ssrc, unsigned pt, unsigned short rtp_seq, unsigned rtp_ts,
+    void write(const pcap_pkt& pkt, unsigned ssrc, unsigned pt, unsigned short rtp_seq, unsigned rtp_ts,
                std::optional<unsigned> twcc_seq, std::optional<unsigned> abs_send_time) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,ssrc,pt,rtp_seq,rtp_ts,trans_cc_seq,trans_cc_send_time_ms" << std::endl;
+            _fs << "ts_s,ts_us,frame_len,ssrc,pt,rtp_seq,rtp_ts,trans_cc_seq,trans_cc_send_time_ms"
+                << std::endl;
         }
 
         if (_fs.is_open()) {
-            _fs << ts.tv_sec << "," << ts.tv_usec << "," << ssrc << "," << pt << "," << rtp_seq << ","
-                << rtp_ts << "," << (twcc_seq ? std::to_string(*twcc_seq) : "NA") << ","
+            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << "," << ssrc
+                << "," << pt << "," << rtp_seq << "," << rtp_ts << ","
+                << (twcc_seq ? std::to_string(*twcc_seq) : "NA") << ","
                 << (abs_send_time ? std::to_string(*abs_send_time) : "NA") << std::endl;
         }
     }
@@ -73,28 +84,44 @@ public:
 
 class rtcp_sr_log : public log {
 public:
-    void write(timeval ts, unsigned ssrc, unsigned rtp_ts) {
+    void write(const pcap_pkt& pkt, unsigned ssrc, unsigned rtp_ts) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,ssrc,rtp_ts" << std::endl;
+            _fs << "ts_s,ts_us,frame_len,ssrc,rtp_ts" << std::endl;
         }
 
         if (_fs.is_open()) {
-            _fs << ts.tv_sec << "," << ts.tv_usec << "," << ssrc << rtp_ts << std::endl;
+            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << "," << ssrc
+                << "," << rtp_ts << std::endl;
         }
     }
 };
 
 class rtcp_rr_log : public log {
 public:
-    void write(timeval ts, unsigned ssrc, double loss, unsigned jitter, double rtt_ms) {
+    void write(const pcap_pkt& pkt, unsigned ssrc, double loss, unsigned jitter, double rtt_ms) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,ssrc,loss,jitter,rtt_ms" << std::endl;
+            _fs << "ts_s,ts_us,frame_len,ssrc,loss,jitter,rtt_ms" << std::endl;
         }
 
         if (_fs.is_open()) {
-            _fs << ts.tv_sec << "," << ts.tv_usec << "," << loss << "," << jitter << "," << rtt_ms
+            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << "," << loss
+                << "," << jitter << "," << rtt_ms << std::endl;
+        }
+    }
+};
+
+class rtcp_twcc_log : public log {
+public:
+    void write(const pcap_pkt& pkt) {
+
+        if (!_line_count++) {
+            _fs << "ts_s,ts_us,frame_len" << std::endl;
+        }
+
+        if (_fs.is_open()) {
+            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len
                 << std::endl;
         }
     }
@@ -116,41 +143,50 @@ public:
 
 class stun_log : public log {
 public:
-    void write(timeval ts, std::uint16_t msg_type, const std::string& trans_id) {
+    void write(const pcap_pkt& pkt, std::uint16_t msg_type, const std::string& trans_id) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,msg_type,trans_id" << std::endl;
+            _fs << "ts_s,ts_us,frame_len,msg_type,trans_id" << std::endl;
         }
 
         if (_fs.is_open()) {
-            _fs << std::dec << ts.tv_sec << "," << ts.tv_usec << "," << std::hex << std::setw(4)
-                << std::setfill('0') << msg_type << "," << trans_id << std::endl;
+            _fs << std::dec << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << ","
+                << std::hex << std::setw(4) << std::setfill('0') << msg_type << "," << trans_id
+                << std::endl;
         }
     }
 };
 
 class av1_log : public log {
 public:
-    void write(timeval ts, const av1::dependency_descriptor& av1_dd, unsigned media_len) {
+    void write(const pcap_pkt& pkt, const rtp::hdr* rtp, const av1::dependency_descriptor& av1_dd,
+               unsigned media_len) {
 
         if (!_line_count++) {
-            _fs << "ts_s,ts_us,start_of_frame,end_of_frame,template_id,frame_number,media_len"
-                << std::endl;
+            _fs << "ts_s,ts_us,frame_len,rtp_ssrc,rtp_seq,rtp_ts,start_of_frame,end_of_frame,"
+                << "template_id,frame_number,dep_struct,media_len" << std::endl;
         }
 
         if (_fs.is_open()) {
 
-            _fs << std::dec << ts.tv_sec << "," << ts.tv_usec << ","
+            _fs << std::dec << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << ","
+                << pkt.frame_len << ","
+                << ntohl(rtp->ssrc) << ","
+                << ntohs(rtp->seq) << ","
+                << ntohl(rtp->ts) << ","
                 << (av1_dd.mandatory_fields().start_of_frame() ? "1" : "0") << ","
                 << (av1_dd.mandatory_fields().end_of_frame() ? "1" : "0") << ","
                 << av1_dd.mandatory_fields().template_id() << ","
                 << av1_dd.mandatory_fields().frame_number() << ","
+                << ((av1_dd.len() > 3) ?
+                    hex_string_from_bytes(av1_dd.bytes() + 3, av1_dd.len() - 3) : "NA") << ","
                 << media_len
                 << std::endl;
         }
     }
 };
 
+/*
 class av1_dd_log : public log {
 public:
     void write(timeval ts, const unsigned char* buf, unsigned len) {
@@ -171,22 +207,13 @@ public:
         }
     }
 };
+*/
 
-std::string hex_string_from_bytes(const unsigned char* buf, unsigned len) {
 
-    std::stringstream ss;
-
-    for (auto i = 0; i < len; i++)
-        ss << std::hex << std::setw(2) << std::setfill('0') << (unsigned) *(buf + i);
-
-    return ss.str();
-}
 
 int main(int argc, char** argv) {
 
-
     auto config = parse_options(set_options(), argc, argv);
-
 
     struct {
         unsigned long processed = 0;
@@ -194,13 +221,14 @@ int main(int argc, char** argv) {
     } counters;
 
     struct {
-        rtp_log      rtp;
-        rtcp_sr_log  rtcp_sr;
-        rtcp_rr_log  rtcp_rr;
-        ts_pairs_log ts_pairs;
-        stun_log     stun;
-        av1_log      av1;
-        av1_dd_log   av1_dd;
+        rtp_log       rtp;
+        rtcp_sr_log   rtcp_sr;
+        rtcp_rr_log   rtcp_rr;
+        rtcp_twcc_log rtcp_twcc;
+        ts_pairs_log  ts_pairs;
+        stun_log      stun;
+        av1_log       av1;
+        // av1_dd_log    av1_dd;
     } logs;
 
     pcap_pkt pkt;
@@ -214,13 +242,14 @@ int main(int argc, char** argv) {
 
     try {
 
-        logs.rtp.open("data/rtp.csv");
-        logs.rtcp_sr.open("data/rtcp_sr.csv");
-        logs.rtcp_rr.open("data/rtcp_rr.csv");
-        logs.ts_pairs.open("data/ts_pairs.csv");
-        logs.stun.open("data/stun.csv");
-        logs.av1.open("data/av1.csv");
-        logs.av1_dd.open("data/av1_dd.csv");
+        logs.rtp.open("rtp.csv");
+        logs.rtcp_sr.open("rtcp_sr.csv");
+        logs.rtcp_rr.open("rtcp_rr.csv");
+        logs.rtcp_twcc.open("rtcp_twcc.csv");
+        logs.ts_pairs.open("ts_pairs.csv");
+        logs.stun.open("stun.csv");
+        logs.av1.open("av1.csv");
+        // logs.av1_dd.open("av1_dd.csv");
 
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
@@ -246,7 +275,7 @@ int main(int argc, char** argv) {
 
             auto* eth = (net::eth::hdr*) pkt.buf;
 
-            if ((net::eth::type) eth->ether_type != net::eth::type::ipv4) {
+            if ((net::eth::type) ntohs(eth->ether_type) != net::eth::type::ipv4) {
                 counters.ignored++;
                 continue;
             }
@@ -265,10 +294,15 @@ int main(int argc, char** argv) {
 
         auto* udp = (net::udp::hdr*) (pkt.buf + offset);
 
-        if ((ntohl(ipv4->src_addr) == 0xac101534 && ntohl(ipv4->dst_addr) == 0xac101534
-            && ntohs(udp->src_port) == 57438 && ntohs(udp->dst_port) == 49846) ||
-            (ntohl(ipv4->src_addr) == 0xac101534 && ntohl(ipv4->dst_addr) == 0xac101534
-             && ntohs(udp->src_port) == 49846 && ntohs(udp->dst_port) == 57438)) {
+        /*
+        if ((ntohl(ipv4->src_addr) == 0xac140a04 && ntohl(ipv4->dst_addr) == 0x2ccb879d
+            && ntohs(udp->src_port) == 57242 && ntohs(udp->dst_port) == 40771) ||
+            (ntohl(ipv4->src_addr) == 0x2ccb879d && ntohl(ipv4->dst_addr) == 0xac140a04
+             && ntohs(udp->src_port) == 40771 && ntohs(udp->dst_port) == 57242)) {
+        */
+
+        if (ntohs(udp->src_port) == 54522 || ntohs(udp->dst_port) == 54522) {
+
 
         } else {
             counters.ignored++;
@@ -285,7 +319,7 @@ int main(int argc, char** argv) {
             auto* stun = (stun::hdr*) pl_buf;
             auto trans_id = hex_string_from_bytes(stun->trans_id, 12);
 
-            logs.stun.write(pkt.ts, ntohs(stun->type), trans_id);
+            logs.stun.write(pkt, ntohs(stun->type), trans_id);
 
         } else if (rtp::contains_rtp(pl_buf, pl_len)) {
 
@@ -300,54 +334,20 @@ int main(int argc, char** argv) {
 
             auto media_len = pl_len - rtp::HDR_LEN - rtp::total_ext_len(rtp);
 
-            auto av1 = rtp::get_ext(rtp, 13);
+            auto av1 = rtp::get_ext(rtp, 12);
 
             if (av1) {
-
                 av1::dependency_descriptor av1_dd{av1->data, av1->len};
+                logs.av1.write(pkt, rtp, av1_dd, media_len);
 
-                logs.av1.write(pkt.ts, av1_dd, media_len);
-
+                /*
                 if (av1_dd.template_dependency_structure_present_flag()) {
                     logs.av1_dd.write(pkt.ts, av1->data, av1->len);
                 }
-
-                /*
-                auto* av1_mand = (av1::mandatory_descriptor_fields*) bytes;
-
-//                std::cout << (av1_mand->start_of_frame() ? "1" : "0") << ","
-//                          << (av1_mand->end_of_frame() ? "1" : "0") << ","
-//                          << av1_mand->frame_number() << ","
-//                          << av1_mand->template_id() << ",";
-
-                if (av1->len > 3) {
-
-                    auto* extended_start = bytes + 3;;
-
-                    bool template_dependency_structure_present_flag = (extended_start[0] >> 7) & 1;
-                    bool active_decode_targets_present_flag = (extended_start[0] >> 6) & 1;
-                    bool custom_dtis_flag = (extended_start[0] >> 5) & 1;
-                    bool custom_fdiffs_flag = (extended_start[0] >> 4) & 1;
-                    bool custom_chains_flag = (extended_start[0] >> 3) & 1;
-
-                    std::cout
-                        << "template_dependency_structure_present_flag:  " << (template_dependency_structure_present_flag ? "1" : "0") << std::endl
-                        << "active_decode_targets_present_flag: " << (active_decode_targets_present_flag ? "1" : "0") << std::endl
-                        << "custom_dtis_flag: " << (custom_dtis_flag ? "1" : "0") << std::endl
-                        << "custom_fdiffs_flag: " << (custom_fdiffs_flag ? "1" : "0") << std::endl
-                        << "custom_chains_flag: " << (custom_chains_flag ? "1" : "0") << std::endl;
-
-                    if (template_dependency_structure_present_flag) {
-
-
-                    }
-
-                }
                 */
-
             }
 
-            logs.rtp.write(pkt.ts, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
+            logs.rtp.write(pkt, ntohl(rtp->ssrc), rtp->payload_type(), ntohs(rtp->seq),
                           ntohl(rtp->ts), transport_cc_seq, abs_send_time_ms);
 
         } else if (rtcp::contains_rtcp(pl_buf, pl_len)) {
@@ -357,7 +357,7 @@ int main(int argc, char** argv) {
             if (rtcp->pt == 200) { // sender report
 
                 auto* sr = (rtcp::sr*) (pl_buf + rtcp::HDR_LEN);
-                logs.rtcp_sr.write(pkt.ts, ntohl(rtcp->ssrc), ntohl(sr->rtp_ts));
+                logs.rtcp_sr.write(pkt, ntohl(rtcp->ssrc), ntohl(sr->rtp_ts));
 
             } else if (rtcp->pt == 201) { // receiver report
 
@@ -377,11 +377,12 @@ int main(int argc, char** argv) {
 
                     unsigned jitter = ntohl(recep_rep->interarrival_jitter);
 
-                    logs.rtcp_rr.write(pkt.ts, ntohl(recep_rep->ssrc), loss, jitter, rtt_ms);
+                    logs.rtcp_rr.write(pkt, ntohl(recep_rep->ssrc), loss, jitter, rtt_ms);
                 }
 
             } else if (rtcp->pt == 205 && rtcp->fmt() == 15) { // transport-cc
 
+                /*
                 auto* twcc = (rtcp::twcc::hdr*) (pl_buf + rtcp::HDR_LEN);
                 auto* twcc_chunks = pl_buf + rtcp::HDR_LEN + rtcp::twcc::HDR_LEN;
 
@@ -390,6 +391,9 @@ int main(int argc, char** argv) {
                 for (const auto& pkt_fb: pkt_feedback) {
                     gcc.add_twcc_fb(pkt_fb.seq, pkt_fb.received, pkt_fb.timestamp);
                 }
+                */
+
+                logs.rtcp_twcc.write(pkt);
             }
 
         } else {
