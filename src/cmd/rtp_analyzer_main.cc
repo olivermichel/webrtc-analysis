@@ -106,8 +106,8 @@ public:
         }
 
         if (_fs.is_open()) {
-            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << "," << loss
-                << "," << jitter << "," << rtt_ms << std::endl;
+            _fs << pkt.ts.tv_sec << "," << pkt.ts.tv_usec << "," << pkt.frame_len << "," << ssrc
+                << "," << std::fixed << loss << "," << jitter << "," << rtt_ms << std::endl;
         }
     }
 };
